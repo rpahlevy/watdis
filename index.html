@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Debit Air</title>
+</head>
+<body>
+    <h1 class="title">
+        Debit Chipoleti TOR 30 Sragen <br>
+        D.I. Colo Timur, BBWS Bengawan Solo
+    </h1>
+    <div class="controller">
+        <button id="btn-prev-date" onclick="prev_date()">
+            &lsaquo; prev
+        </button>
+        <h2 id="current-date"></h2>
+        <button id="btn-next-date" onclick="next_date()">
+            next &rsaquo;
+        </button>
+    </div>
+    <br>
+    <p id="info-loading" class="info-loading">Loading...</p>
+    <div id="wrapper-chart">
+        <canvas id="chart"></canvas>
+    </div>
+    
+    <style>
+        .title {
+            text-align: center;
+        }
+        .hidden {
+            display: none;
+        }
+        .info-loading {
+            color: tomato;
+            text-align: center;
+        }
+        .controller {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #current-date {
+            /* font-size: 1.25rem; */
+            margin: 0;
+        }
+        button {
+            background-color: tomato;
+            color: white;
+            padding: 5px 10px;
+            border: 2px solid tomato;
+            border-radius: 3px;
+            font-size: 1.1rem;
+        }
+        button[disabled=disabled] {
+            cursor: not-allowed;
+        }
+    </style>
+
+    <script>
+        window.onload = () => {
+            update_date_label()
+        }
+    </script>
+
+    <script>
+        let current_date = '2020-08-16'
+        let format_date = () => {
+            let dt = new Date(current_date)
+            return dt.getDate() +'/'+ (dt.getMonth() + 1) +'/'+ dt.getFullYear()
+        }
+        let prev_date = () => {
+            let dt = new Date(current_date)
+            dt.setDate(dt.getDate() - 1)
+            current_date = dt.getFullYear() +'-'+ (dt.getMonth() + 1) +'-'+ dt.getDate()
+            update_date_label()
+        }
+        let next_date = () => {
+            let dt = new Date(current_date)
+            dt.setDate(dt.getDate() + 1)
+            current_date = dt.getFullYear() +'-'+ (dt.getMonth() + 1) +'-'+ dt.getDate()
+            update_date_label()
+        }
+        let update_date_label = () => {
+            let label = document.getElementById('current-date')
+            label.innerText = format_date(current_date)
+            fetch_data()
+        }
+    </script>
+
+    <script>
+        let default_data = {}
+        let sn = '1912-3'
+        let api_url = 'https://prinus.net/api/sensor'
+        let token = 'YnRfc3VuZ2FpOmJ0c3VuZ2FpMTAyOQ=='
+        let debit = (distance) => {
+            let q = 5.224 * Math.pow((1270 - distance)/1000, 1.5)
+            return q
+        }
+        let reset_data = () => {
+            default_data = {}
+            for (let i=0; i<24; i++) {
+                let h = i
+                if (i < 10) {
+                    h = '0'+ i
+                }
+                for (let j=0; j<60; j+=5) {
+                    let m = j
+                    if (j < 10) {
+                        m = '0'+ j
+                    }
+                    let k = h +':'+ m
+                    let v = null 
+                    default_data[k] = v
+                }
+            }
+        }
+        let fetch_data = () => {
+            reset_data()
+
+            document.getElementById('wrapper-chart').classList.add('hidden')
+            document.getElementById('info-loading').classList.remove('hidden')
+            document.getElementById('btn-next-date').setAttribute('disabled', 'disabled')
+            document.getElementById('btn-prev-date').setAttribute('disabled', 'disabled')
+
+            let target_url = api_url +'/'+ sn +'?sampling='+ current_date
+            fetch(target_url, {
+                method: 'GET',
+                headers: {
+                    // 'Access-Control-Allow-Origin': '*',
+                    // 'Access-Control-Allow-Credentials': 'true',
+                    // 'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS,POST,PUT',
+                    // 'Access-Control-Allow-Headers': 'Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Control-Request-Method, Access-Control-Request-Headers',
+                    'Content-Type': 'application/json;charset=utf-8',
+                    'Authorization': 'Basic '+ token,
+                },
+            }).then(res => {
+                console.log(res)
+                if (!res.ok) {
+                    alert('failed')
+                    return;
+                }
+                return res.json()
+            }).then(json => {
+                if (!json) {
+                    return
+                }
+                console.log(json)
+                for (let record of json) {
+                    let sampling = new Date(record.sampling)
+                    let h = sampling.getHours()
+                    let m = sampling.getMinutes()
+                    if (h < 10) {
+                        h = '0'+ h
+                    }
+                    if (m < 10) {
+                        m = '0'+ m
+                    }
+                    let time = h +':'+ m
+                    if (record.distance) {
+                        let db = debit(record.distance)
+                        default_data[time] = db
+                        console.log(time +' ==>> '+ db)
+                    } else {
+                        console.log(time +' ==>> ???')
+                    }
+                }
+                init_chart(default_data)
+
+                document.getElementById('wrapper-chart').classList.remove('hidden')
+                document.getElementById('info-loading').classList.add('hidden')
+                document.getElementById('btn-next-date').removeAttribute('disabled')
+                document.getElementById('btn-prev-date').removeAttribute('disabled')
+            })
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+    <script>
+        let chart = null
+        let init_chart = (dataset) => {
+            if (chart) {
+                chart.reset()
+            }
+            // get labels & the data from dataset
+            let labels = []
+            let data = []
+            for (let time in dataset) {
+                labels.push(time)
+                data.push(dataset[time])
+            }
+            let ctx = document.getElementById('chart').getContext('2d')
+            chart = new Chart(ctx, {
+                // The type of chart we want to create
+                type: 'line',
+
+                // The data for our dataset
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Debit Air',
+                        backgroundColor: '#5C96C8',
+                        borderColor: '#5C96C8',
+                        data: data,
+                        fill: false,
+                    }]
+                },
+
+                // Configuration options go here
+                options: {
+                    // title: {
+                    //     display: true,
+                    //     fontSize: 22,
+                    //     fontStyle: 'normal',
+                    //     text: [
+                    //         'Debit Chipoleti TOR 30 Sragen',
+                    //         'D.I. Colo Timur, BBWS Bengawan Solo',
+                    //     ],
+                    // },
+                    legend: {
+                        display: false,
+                        // position: 'bottom'
+                    },
+					scales: {
+						yAxes: [{
+							ticks: {
+								beginAtZero: true,
+								min: 0,
+                            // 	max: (type == 'bar' ? 200 : undefined),
+                            //     maxTicksLimit: 10
+							},
+							scaleLabel: {
+								display: true,
+								labelString: 'Debit (liter/detik)'
+                            },
+						}],
+						xAxes: [{
+							ticks: {
+								maxTicksLimit: 25
+							},
+							scaleLabel: {
+								display: true,
+								labelString: 'Jam'
+							},
+                            gridLines: {
+                                display: false,
+                            },
+						}]
+					},
+                }
+            })
+        }
+    </script>
+</body>
+</html>
