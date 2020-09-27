@@ -53,9 +53,11 @@
             border: 2px solid tomato;
             border-radius: 3px;
             font-size: 1.1rem;
+            cursor: pointer;
         }
         button[disabled=disabled] {
-            cursor: not-allowed;
+            opacity: .5;
+            cursor: progress;
         }
     </style>
 
@@ -96,8 +98,9 @@
         let api_url = 'https://prinus.net/api/sensor'
         let token = 'YnRfc3VuZ2FpOmJ0c3VuZ2FpMTAyOQ=='
         let debit = (distance) => {
-            let q = 5.224 * Math.pow((1270 - distance)/1000, 1.5)
-            return q
+            let q = 5.224 * Math.pow((1270 - distance)/1000, 1.5) * 1000
+            // https://stackoverflow.com/a/11832950
+            return Math.round((q + Number.EPSILON) * 100) / 100
         }
         let reset_data = () => {
             default_data = {}
